@@ -107,21 +107,19 @@ Each folder represents an **independent project** that can be developed, tested,
 * Useful for personal projects and learning goals
 
 ---
+##Focus-Software (Optional)
 
-## ➕ Optional Projects (Only if Time Allows)
+Simple study timer (25 / 50 minutes)
 
-These are **not required** and should only be built if core projects are complete.
+No streaks, no statistics
 
-### Notes-Software (Optional)
+##NoTypo-Software (Optional)
 
-* Text-first notes
-* Attach PDFs
-* Link notes to calendar tasks
+Typing practice and accuracy improvement
 
-### Focus-Software (Optional)
+Web-based access and mobile application support
 
-* Simple study timer (25 / 50 minutes)
-* No streaks, no statistics
+Focus on learning, not competition or speed pressure
 
 ---
 
