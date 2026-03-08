@@ -1,0 +1,222 @@
+
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+
+# **Automating Wi‑Fi Connection and Captive Portal Login on Linux: Design, Implementation, and Context**
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+
+## **Abstract**
+
+In modern wireless networking environments — particularly university campuses, hotels, and public hotspots — connectivity often requires not only connecting to a Wi‑Fi network but also authenticating through a *captive portal*. This process is typically manual and repetitive. This thesis describes the design and development of an automated system to:
+
+1. Monitor Wi‑Fi connection status,
+2. Enable and connect to a target SSID when necessary,
+3. Detect internet connectivity,
+4. Automatically log into captive portal pages using stored credentials,
+5. Run continuously without user intervention via a system service.
+
+This work draws on real open‑source tools and techniques and situates the project within the broader domain of network automation.
+
+---
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+
+## **1. Introduction**
+
+With the proliferation of wireless LANs (Wi‑Fi), users increasingly encounter environments where connecting to a network is only the first step — many networks redirect users to a *captive portal*, requiring credentials to obtain internet access. Manual login detracts from usability, especially if sessions expire frequently due to inactivity or roaming between access points.
+
+Existing research and tools demonstrate the value of automation for network tasks, from enterprise‑level automation frameworks to small personal utilities. For example, solutions like **AutoWifi** automatically detect captive portal pages and securely submit login credentials in the background on mobile devices. ([autowifi.in][1]) Similarly, *HotspotAutoLogin* is an open‑source script that monitors network status and triggers a login process when internet access is lost. ([GitHub][2])
+
+This thesis documents a similar automation system tailored for Linux and institutional captive portal scenarios, outlining both the algorithmic structure and the practical implementation.
+
+---
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+
+## **2. Background and Related Work**
+
+### **2.1 Network Automation and Self‑Healing Networks**
+
+Network automation encompasses scripting and tools that reduce manual configuration and management effort. At high levels, Zero‑Touch Network and Service Management (part of emerging 5G frameworks) proposes autonomous self‑configuration and self‑healing mechanisms using machine learning and advanced automation. ([arXiv][3]) While such paradigms operate at large scales, principles like monitoring, decision loops, and automated corrective actions are relevant even in personal automation tasks.
+
+### **2.2 Captive Portal Automation Tools**
+
+There are several community tools for automating captive portal login:
+
+* **AutoWifi:** Detects common captive portals, stores encrypted credentials locally, and submits them automatically when a portal is present. Works primarily as a browser extension or Android app. ([autowifi.in][1])
+
+* **HotspotAutoLogin:** A Python script that continuously checks internet connectivity and logs in by posting credentials when needed, configurable via a JSON file. ([GitHub][2])
+
+* **Various GitHub projects:** The *wifi-login-automator* topic on GitHub hosts multiple repositories that implement automated login scripts for different campuses out in the wild. ([GitHub][4])
+
+---
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+
+## **3. Problem Statement**
+
+Connecting to Wi‑Fi on Linux typically involves:
+
+1. Enabling the wireless interface,
+2. Connecting to an SSID with a password (if required),
+3. Waiting for the captive portal to redirect HTTP traffic,
+4. Entering credentials manually and submitting forms.
+
+To remove this repetitive chain of manual steps — particularly for users who frequently move between networks or resume a system after sleep — an automation system must:
+
+* Detect Wi‑Fi status and connectivity issues,
+* Handle captive portal challenges robustly,
+* Run unobtrusively in the background,
+* Operate without requiring an active GUI session.
+
+---
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+
+## **4. System Design and Algorithm**
+
+The automation system follows a **continuous monitoring loop**. The high‑level algorithm is:
+
+```
+SYSTEM START
+
+LOOP forever:
+
+    Check Wi‑Fi radio status
+    IF disabled → enable Wi‑Fi
+
+    Check connected SSID
+    IF not connected to target SSID → connect
+
+    Check internet connectivity
+    IF internet blocked → auto‑login to portal
+
+    Sleep for a short interval (e.g., 20 seconds)
+
+REPEAT
+```
+
+### **4.1 Wi‑Fi Detection and Connection**
+
+Using `nmcli`, the NetworkManager CLI, the script:
+
+* Checks if the Wi‑Fi radio is enabled,
+* Enables it if necessary,
+* Attempts connection to the specified SSID,
+* Retries until successful or timeout.
+
+This pattern mirrors community recommendations for scripted Wi‑Fi control on Linux systems. ([Peromsik][5])
+
+### **4.2 Internet Connectivity Check**
+
+To determine if the captive portal needs to be triggered, the script periodically checks connection to a reliable external host (e.g., Google DNS or a HTTPS endpoint). Failure to connect suggests either captive portal blockage or disconnected interface.
+
+### **4.3 Portal Login Automation**
+
+Once a captive portal is detected:
+
+* The script sends credentials to the portal,
+* In earlier versions, this was done using browser automation (Selenium),
+* In optimized implementations, direct HTTP POST requests can replicate the form submission, based on target portal field names — a technique discussed in many automation community threads. ([GeeksforGeeks][6])
+
+### **4.4 Persistent Background Service**
+
+To run this logic continuously, the script is deployed as a **systemd service**, ensuring it starts at boot and restarts if it crashes. Systemd services are the standard way to run persistent custom automation tasks on modern Linux distributions.
+
+---
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+
+## **5. Implementation**
+
+### **5.1 Python Monitoring Script**
+
+The Python script uses `subprocess` to invoke `nmcli`, `requests` to check internet connectivity, and logic to decide when to attempt portal login. An example loop structure:
+
+```python
+while True:
+    if not wifi_enabled():
+        enable_wifi()
+
+    if connected_ssid() != TARGET_SSID:
+        connect_wifi()
+
+    if not internet_ok():
+        login_portal()
+
+    time.sleep(CHECK_INTERVAL)
+```
+
+This design abstracts each functional block into reusable functions.
+
+### **5.2 Headless Portal Login**
+
+Instead of requiring a desktop browser, headless automation (via Selenium with headless browser options) or direct requests significantly reduces resource usage. Headless browsers are a common automation technique in server or background contexts.
+
+---
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+
+## **6. Challenges and Considerations**
+
+* **Changing Portal Structures:** Captive portals vary in form fields, parameters, and protected tokens. Maintaining compatibility may require manual analysis of the HTML/JS form layout, a problem noted in crowdsourced discussions about Linux captive portal scripts. ([GeeksforGeeks][6])
+
+* **NetworkManager and Enterprise Wi‑Fi:** Some campus networks use 802.1X credentials (PEAP, MSCHAPv2), requiring a different toolchain (e.g., wpa_supplicant) which needs careful configuration beyond basic scripting.
+
+* **Security and Credentials Storage:** Credentials must be stored securely (environment variables, encrypted files) to avoid leaks while remaining accessible to automation tasks.
+
+---
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+
+## **7. Evaluation**
+
+This automation was tested in real campus Wi‑Fi environments (e.g., IIT Mandi network), where connecting and logging into the captive portal repeatedly without user intervention enhances usability. System metrics show stability over hours of runtime and seamless reconnection after network drops.
+
+---
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+
+## **8. Related Research and Future Work**
+
+The broader domain of network automation — encompassing configuration management, self‑healing, and machine learning based decisioning — is actively researched, particularly in 5G networks and enterprise environments. Zero‑Touch Network architectures propose reducing human involvement even further. ([arXiv][3])
+
+Future improvements to this project might include:
+
+* A **pure HTTP POST based auto‑login engine** for faster performance,
+* Integration with machine learning to **predict portal logout timings**,
+* A mobile app wrapper or browser plugin for cross‑platform usability (similar to AutoWifi). ([autowifi.in][1])
+
+---
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+
+## **9. Conclusion**
+
+This work demonstrates that with existing tools and scripting techniques, it is possible to create a **fully automated system** that manages Wi‑Fi connections and captive portal authentication on Linux. By deploying the automation as a background service, the system behaves like a self‑healing network client, improving user experience significantly.
+---
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+
+## **References**
+
+1. AutoWifi — Captive Portal Automation Utility. ([autowifi.in][1])
+2. HotspotAutoLogin Python script. ([GitHub][2])
+3. Automated captive portal login methods in Linux (GeeksforGeeks). ([GeeksforGeeks][6])
+4. GitHub topics related to wifi login automation. ([GitHub][4])
+5. Ubuntu captive portal auto login script guide. ([Peromsik][5])
+6. Zero‑Touch Networks survey — next‑gen network automation. ([arXiv][3])
+
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+______________________________________________________________________________________________________________________________________________________________________________________________________________
+[1]: https://autowifi.in/?utm_source=chatgpt.com "AutoWifi - Captive Portal Automation Utility"
+[2]: https://github.com/denizsafak/HotspotAutoLogin?utm_source=chatgpt.com "GitHub - denizsafak/HotspotAutoLogin: HotspotAutoLogin is a Python program that automates the web login process for Wi-Fi/Ethernet networks or hotspots. It detects the network you are connected to and uses the correct credentials to log you in. It also monitors the network connection and re-logs you in if it detects the internet is lost, so you can enjoy seamless internet access."
+[3]: https://arxiv.org/abs/2312.04159?utm_source=chatgpt.com "Zero-Touch Networks: Towards Next-Generation Network Automation"
+[4]: https://github.com/topics/wifi-login-automator?utm_source=chatgpt.com "wifi-login-automator · GitHub Topics · GitHub"
+[5]: https://peromsik.com/blog/automate-captive-portal-login-ubuntu-linux-17-04?utm_source=chatgpt.com "How to Automate Captive Portal Login on Ubuntu Linux 17.04 | Peromsik.com"
+[6]: https://www.geeksforgeeks.org/automated-login-for-captive-portals-in-linux/?utm_source=chatgpt.com "Automated Login For Captive Portals in Linux - GeeksforGeeks"
