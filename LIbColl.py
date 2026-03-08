@@ -146,3 +146,11 @@ for page in range(START_PAGE, END_PAGE + 1):
 
 
 print("\n✔ ALL PAGES FINISHED")
+
+
+
+""" 
+
+https://chatgpt.com/share/69ad7711-2240-8005-9c5a-b513764a65d9
+
+"""
